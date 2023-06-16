@@ -1,0 +1,91 @@
+---
+title: "Homework_6"
+author: "FJL"
+date: "2023-06-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## faraway::rats
+## 读取数据
+```{r}
+library(faraway)
+library(tidyverse)
+library(multcompView)
+library(car)
+d <- rats
+head(d)
+table(d$poison,d$treat)
+```
+
+## 可视化
+```{r}
+ggplot(d,aes(treat,time,color = poison))+
+  geom_boxplot(outlier.alpha = 0)+
+  geom_jitter(position=position_jitterdodge(jitter.width
+=0.4))
+```
+
+## 生存时间是否受treat影响？
+## 生存时间是否受poison影响？
+## poison和treat在影响生存时间时有无交互作用
+```{r}
+mod.1 <- aov(time~poison * treat, data = d)
+summary(mod.1)
+
+# 不存在交互作用，poison和treat都有显著影响
+
+mod.2 <- aov(time~poison + treat, data = d)
+summary(mod.2)
+```
+
+## 事后检验
+```{r}
+# poison主效应
+post.1 <- TukeyHSD(mod.1,which = "poison")
+post.1
+
+p.value <- post.1$poison[,4]
+let <- multcompLetters(p.value)
+let
+
+p.value1 <- TukeyHSD(mod.1)$'poison:treat'[,4]
+let1 <- multcompLetters(p.value1)
+let1
+
+d_pvalue <- data.frame(treat = c("A","B","C","D"),
+                       poison = c("I","II","III"),
+                       label = as.vector(let1$Letters))
+
+d_label <- d |> 
+  group_by(treat,poison) |> 
+  summarise(y_pos = max(time)) |> 
+  left_join(d_pvalue,by = c("treat","poison"))
+
+ggplot(d,aes(treat,time,color = poison))+
+  geom_boxplot(outlier.alpha = 0)+
+  geom_jitter(position=position_jitterdodge(jitter.width =0.4))+
+  labs(x = "Treat", y = "Time (h)",color = NULL)+
+  theme(legend.position = c(0.1,0.9))+
+  geom_text(data = d_label,aes(x = treat, y = y_pos + 0.1, label = label,
+                               group = poison),color = "black",
+            position = position_dodge(width = 0.7))
+
+```
+
+## 诊断
+```{r}
+#正态分布
+resid <- mod.1$residuals
+shapiro.test(resid)
+
+# 方差齐性
+leveneTest(time~treat*poison,data = d)
+leveneTest(time~treat,data = d)
+leveneTest(time~poison,data = d)
+plot(mod.1)
+```
+
